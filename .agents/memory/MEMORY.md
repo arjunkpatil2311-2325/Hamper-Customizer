@@ -1,0 +1,1 @@
+- [Clerk SDK compatibility](clerk-sdk-compatibility.md) — align the React SDK with its shared package; respect the package release-age guard.

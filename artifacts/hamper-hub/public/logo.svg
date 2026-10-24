@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 52" fill="none">
+  <rect x="1" y="5" width="42" height="42" rx="21" fill="#315C48"/>
+  <path d="M22 16v19m-9.5-14h19M13.8 21l8.2 5 8.2-5M14 21v9.5c0 1.8 3.6 3.4 8 3.4s8-1.6 8-3.4V21" stroke="#F8F3E9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="53" y="28" fill="#244535" font-family="Georgia,serif" font-size="25" font-weight="600" letter-spacing="-1.2">hamper<tspan fill="#C17F68">hub</tspan></text>
+  <text x="54" y="42" fill="#6E7A70" font-family="Arial,sans-serif" font-size="7" font-weight="700" letter-spacing="1.25">THE PERSONAL ART OF GIVING</text>
+</svg>
