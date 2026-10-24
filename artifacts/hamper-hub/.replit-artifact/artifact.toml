@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Hamper Hub"
+description = "A customizable gift hamper website where customers choose products, gift packaging, optional photos and names, a budget, and delivery details."
+version = "1.0.0"
+id = "artifacts/hamper-hub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22679
+
+[services.development]
+run = "pnpm --filter @workspace/hamper-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hamper-hub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hamper-hub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22679"
+BASE_PATH = "/"
