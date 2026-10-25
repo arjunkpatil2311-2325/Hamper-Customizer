@@ -12,6 +12,7 @@ import {
 } from "../lib/objectStorage";
 import {
   getCustomerId,
+  isStudioAdmin,
   requireCustomer,
 } from "../middlewares/customerAuth";
 import { errorPayload } from "../lib/httpErrors";
@@ -116,7 +117,7 @@ router.get(
         requestedPermission: ObjectPermission.READ,
       });
 
-      if (!canRead) {
+      if (!canRead && !(await isStudioAdmin(req))) {
         res.status(403).json(
           errorPayload("You do not have access to this photo"),
         );

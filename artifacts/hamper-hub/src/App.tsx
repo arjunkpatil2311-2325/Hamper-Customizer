@@ -5,12 +5,13 @@ import { publishableKeyFromHost } from '@clerk/react/internal';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleHelp,
   Gift, Heart, ImagePlus, Leaf, LoaderCircle, LockKeyhole, Minus, PackageCheck,
-  Plus, Sparkles, Trash2, Truck, X,
+  Plus, Sparkles, Trash2, Truck, X, ClipboardList, MapPin, Phone, RefreshCw,
 } from 'lucide-react';
 import {
-  getListOrdersQueryKey, useCreateOrder, useListOrders, useListProducts, useRequestUploadUrl,
+  getListAdminOrdersQueryKey, getListOrdersQueryKey, useCreateOrder, useGetAdminAccess, useListAdminOrders,
+  useUpdateAdminOrderStatus, useListOrders, useListProducts, useRequestUploadUrl,
 } from '@workspace/api-client-react';
-import type { DeliveryAddress, HamperOrder, HamperOrderInput, PackagingOption, Product } from '@workspace/api-client-react';
+import type { DeliveryAddress, HamperOrder, HamperOrderInput, PackagingOption, Product, OrderStatus } from '@workspace/api-client-react';
 import { Link, Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import NotFound from '@/pages/not-found';
 
@@ -85,6 +86,9 @@ function Header() {
   const { isSignedIn, isLoaded } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const studioAccessQuery = useGetAdminAccess({
+    query: { enabled: Boolean(isLoaded && isSignedIn), staleTime: 60_000 },
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header className="site-header">
@@ -94,6 +98,7 @@ function Header() {
           <Link href="/#collection" data-testid="link-collection">The collection</Link>
           <Link href="/build" data-testid="link-build">Make a hamper</Link>
           {isLoaded && isSignedIn && <Link href="/my-orders" data-testid="link-orders">My orders</Link>}
+          {studioAccessQuery.data?.isAdmin && <Link href="/admin" data-testid="link-admin">Studio desk</Link>}
         </nav>
         <div className="header-actions">
           {isLoaded && isSignedIn ? (
@@ -114,6 +119,7 @@ function Header() {
         <Link onClick={() => setMenuOpen(false)} href="/#collection" data-testid="mobile-link-collection">The collection</Link>
         <Link onClick={() => setMenuOpen(false)} href="/build" data-testid="mobile-link-build">Make a hamper</Link>
         {isSignedIn ? <Link onClick={() => setMenuOpen(false)} href="/my-orders" data-testid="mobile-link-orders">My orders</Link> : <Link onClick={() => setMenuOpen(false)} href="/sign-in" data-testid="mobile-link-sign-in">Sign in</Link>}
+        {studioAccessQuery.data?.isAdmin && <Link onClick={() => setMenuOpen(false)} href="/admin" data-testid="mobile-link-admin">Studio desk</Link>}
       </nav>}
     </header>
   );
@@ -239,6 +245,7 @@ function OrderBuilder() {
   const [address, setAddress] = useState<DeliveryAddress>({ recipientName: '', recipientPhone: '', addressLine1: '', addressLine2: '', city: '', region: '', postalCode: '', country: 'India' });
   const [photoPath, setPhotoPath] = useState('');
   const [photoName, setPhotoName] = useState('');
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [formError, setFormError] = useState('');
@@ -283,8 +290,10 @@ function OrderBuilder() {
       const signed = await requestUpload.mutateAsync({ data: { name: file.name, size: file.size, contentType: file.type as 'image/jpeg' | 'image/png' | 'image/webp' } });
       const response = await fetch(signed.uploadURL, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
       if (!response.ok) throw new Error('The photo could not be uploaded. Please try again.');
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
       setPhotoPath(signed.objectPath);
       setPhotoName(file.name);
+      setPhotoPreviewUrl(URL.createObjectURL(file));
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'We couldn’t upload that photo. Please try again.');
     } finally {
@@ -389,7 +398,7 @@ function OrderBuilder() {
               </div>
               <div className="photo-upload">
                 <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => void handlePhoto(event.target.files?.[0])} data-testid="input-photo" />
-                {photoPath ? <div className="uploaded-photo"><span className="photo-file-icon"><Check size={17} /></span><span><b>{photoName}</b><small>Private photo attached to this gift</small></span><button type="button" aria-label="Remove photo" onClick={() => { setPhotoPath(''); setPhotoName(''); if (fileRef.current) fileRef.current.value = ''; }} data-testid="button-remove-photo"><Trash2 size={17} /></button></div> : <button type="button" className="upload-prompt" onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="button-upload-photo">
+                {photoPath ? <div className="uploaded-photo"><span className="photo-file-icon"><Check size={17} /></span><span><b>{photoName}</b><small>Private photo attached to this gift</small></span><button type="button" aria-label="Remove photo" onClick={() => { setPhotoPath(''); setPhotoName(''); if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl); setPhotoPreviewUrl(''); if (fileRef.current) fileRef.current.value = ''; }} data-testid="button-remove-photo"><Trash2 size={17} /></button></div> : <button type="button" className="upload-prompt" onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="button-upload-photo">
                   <span className="upload-icon">{uploading ? <LoaderCircle className="spin" size={19} /> : <ImagePlus size={19} />}</span><span><b>{uploading ? 'Keeping it safe…' : 'Add one favourite photo'}</b><small>JPEG, PNG or WebP · up to 5 MB · private to your order</small></span><ArrowRight size={16} />
                 </button>}
                 {uploadError && <p className="inline-error" role="alert">{uploadError}</p>}
@@ -421,6 +430,15 @@ function OrderBuilder() {
           <div className="aside-sticky">
             <div className="aside-card">
               <span className="eyebrow">A little preview</span><h2 className="font-display">Made around<br /><em>someone lovely.</em></h2>
+              <div className={`live-preview-wrap live-preview-${packagingOption}`}>
+                <div className="preview-topline"><span className="preview-seal"><Gift size={17} /></span><span>{packagingOption === 'none' ? 'Carefully gathered' : packagingOption === 'celebration' ? 'A little celebration' : 'Studio signature'}</span></div>
+                {chosen.length ? <div className="preview-product-grid">{chosen.slice(0, 6).map((product, index) => <div className={`preview-product preview-product-${index % 4}`} key={product.id}><img src={product.imageUrl} alt={product.imageAlt} /><span>{quantities[product.id]} × {product.name}</span></div>)}</div> : <div className="preview-empty"><Gift size={26} /><span>Your chosen pieces will gather here.</span></div>}
+                {personalizationName.trim() && <div className="preview-label"><small>made for</small><b>{personalizationName.trim()}</b></div>}
+                {giftMessage.trim() && <div className="preview-note">“{giftMessage.trim()}”</div>}
+                {photoPreviewUrl && <div className="preview-photo"><img src={photoPreviewUrl} alt="Your selected personal photo" /><span>A photo for them</span></div>}
+                <div className="preview-budget"><span>Budget · {money.format(Number(budget) || 0)}</span><b>{estimatedTotal > Number(budget) ? 'Over your limit' : 'Within your limit'}</b></div>
+              </div>
+              <p className="preview-disclaimer">A living illustration of your choices, not an exact render of the packed hamper.</p>
               {chosen.length ? <div className="aside-items">{chosen.map((product) => <div className="aside-item" key={product.id}><img src={product.imageUrl} alt="" /><span>{product.name}<small>Qty {quantities[product.id]}</small></span><b>{money.format(product.price * quantities[product.id])}</b></div>)}</div> : <div className="aside-empty"><Gift size={24} /><p>Your chosen pieces will find a home here.</p></div>}
               <div className="aside-total"><span>Selected items</span><strong data-testid="text-subtotal">{money.format(subtotal)}</strong></div>
               <div className="aside-cost-row"><span>Gift wrapping</span><strong>{money.format(packagingCharge)}</strong></div>
@@ -473,6 +491,75 @@ function OrderCard({ order }: { order: HamperOrder }) {
   </article>;
 }
 
+function errorStatus(error: unknown) {
+  if (!error || typeof error !== 'object') return undefined;
+  return (error as { status?: number }).status;
+}
+
+function AdminPage() {
+  const queryClient = useQueryClient();
+  const ordersQuery = useListAdminOrders();
+  const statusMutation = useUpdateAdminOrderStatus();
+  const [filter, setFilter] = useState<'all' | OrderStatus>('all');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<OrderStatus | null>(null);
+  const [mutationMessage, setMutationMessage] = useState('');
+  const [mutationError, setMutationError] = useState('');
+  const allOrders = ordersQuery.data ?? [];
+  const orders = filter === 'all' ? allOrders : allOrders.filter((order) => order.status === filter);
+  const updateStatus = async (id: string, status: OrderStatus) => {
+    setUpdatingId(id);
+    setUpdatingStatus(status);
+    setMutationError('');
+    setMutationMessage('');
+    try {
+      const saved = await statusMutation.mutateAsync({ id, data: { status } });
+      queryClient.setQueryData<HamperOrder[]>(getListAdminOrdersQueryKey(), (current) =>
+        current?.map((order) => order.id === saved.id ? saved : order));
+      setMutationMessage(`Order ${saved.id} is now ${saved.status}.`);
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'The order status could not be updated. Try again.');
+    } finally {
+      setUpdatingId(null);
+      setUpdatingStatus(null);
+    }
+  };
+
+  return <Shell>
+    <main className="admin-page page-shell">
+      <div className="admin-heading">
+        <div><span className="eyebrow">Hamper Hub · studio desk</span><h1 className="font-display">The order <em>book.</em></h1><p>Every detail, ready for the hands that make it happen.</p></div>
+        <button type="button" className="admin-refresh" onClick={() => ordersQuery.refetch()} disabled={ordersQuery.isFetching} data-testid="button-refresh-admin"><RefreshCw size={15} className={ordersQuery.isFetching ? 'spin' : ''} /> Refresh orders</button>
+      </div>
+      {ordersQuery.isLoading ? <div className="admin-loading" aria-label="Loading studio orders">{[1, 2, 3].map((item) => <div className="admin-skeleton" key={item}><div /><span /><span /></div>)}</div> :
+        ordersQuery.isError && errorStatus(ordersQuery.error) === 403 ? <div className="admin-state admin-denied"><LockKeyhole size={28} /><span className="eyebrow">Studio access only</span><h2>This order book is private.</h2><p>Your account does not have permission to view studio orders.</p></div> :
+        ordersQuery.isError ? <div className="admin-state"><CircleHelp size={27} /><h2>We couldn’t open the order book.</h2><p>Order details remain protected. Please try again.</p><button className="button button-dark" onClick={() => ordersQuery.refetch()} data-testid="button-retry-admin">Try again <ArrowRight size={15} /></button></div> :
+        <>
+          <div className="admin-toolbar">
+            <div className="admin-count"><ClipboardList size={18} /><span><b>{allOrders.length}</b> {allOrders.length === 1 ? 'order' : 'orders'} in the studio</span></div>
+            <div className="admin-filters" aria-label="Filter orders by status">{(['all', 'placed', 'preparing', 'delivered'] as const).map((status) => <button type="button" key={status} className={filter === status ? 'active' : ''} onClick={() => setFilter(status)} data-testid={`filter-admin-${status}`}>{status === 'all' ? 'All orders' : status}</button>)}</div>
+          </div>
+          {mutationMessage && <div className="admin-feedback success" role="status" data-testid="status-admin-update"><Check size={15} />{mutationMessage}</div>}
+          {mutationError && <div className="admin-feedback failure" role="alert">{mutationError}</div>}
+          {!allOrders.length ? <div className="admin-state admin-empty"><Gift size={28} /><span className="eyebrow">A quiet desk</span><h2>No orders just yet.</h2><p>Newly placed hampers will appear here with everything the studio needs to prepare them.</p></div> :
+            !orders.length ? <div className="admin-state admin-empty"><ClipboardList size={27} /><h2>Nothing in this section.</h2><p>Try another status filter to see more orders.</p></div> :
+            <div className="admin-orders">{orders.map((order) => <article className="admin-order-card" key={order.id} data-testid={`admin-order-${order.id}`}>
+              <div className="admin-order-header"><div><span className="eyebrow">Received {formatDate(order.createdAt)}</span><h2>{order.deliveryAddress.recipientName}</h2><span className="admin-order-id">Order {order.id}</span></div><span className={`status-pill status-${order.status}`}><span />{order.status === 'placed' ? 'Order received' : order.status === 'preparing' ? 'Being prepared' : 'Delivered'}</span></div>
+              <div className="admin-order-main">
+                <div className="admin-order-products"><span className="admin-label">In this hamper</span><div className="admin-product-list">{order.items.map((item) => <div className="admin-product" key={item.productId}><img src={item.imageUrl} alt={item.imageAlt} /><span><b>{item.name}</b><small>{item.category.replace('-', ' ')} · Qty {item.quantity}</small></span><strong>{money.format(item.quantity * item.unitPrice)}</strong></div>)}</div></div>
+                <div className="admin-recipient"><span className="admin-label">Delivery details</span><div className="recipient-name">{order.deliveryAddress.recipientName}</div><div><Phone size={14} />{order.deliveryAddress.recipientPhone}</div><div><MapPin size={14} /><span>{order.deliveryAddress.addressLine1}{order.deliveryAddress.addressLine2 ? `, ${order.deliveryAddress.addressLine2}` : ''}<br />{order.deliveryAddress.city}, {order.deliveryAddress.region} {order.deliveryAddress.postalCode}<br />{order.deliveryAddress.country}</span></div><div className="delivery-date"><Truck size={14} />{formatDate(order.deliveryDate)}</div></div>
+              </div>
+              <div className="admin-personalization">
+                <div className="admin-personal-copy"><span className="admin-label">Personal touches</span>{order.personalizationName ? <p className="personalization-line"><Heart size={14} />Made for <b>{order.personalizationName}</b></p> : <p className="admin-muted">No name on the gift</p>}{order.giftMessage ? <blockquote className="saved-message">“{order.giftMessage}”</blockquote> : <p className="admin-muted">No gift message</p>}{order.photoObjectPath && <PrivatePhoto objectPath={order.photoObjectPath} />}</div>
+                <div className="admin-total-block"><span className="admin-label">Order total</span><b>{money.format(order.total)}</b><small>Items {money.format(order.itemsSubtotal)} · Wrap {money.format(order.packagingFee)} · Delivery {money.format(order.deliveryFee)}</small><small>Budget {money.format(order.budget)} · {order.packagingOption.replace('-', ' ')} wrap</small></div>
+              </div>
+              <div className="admin-order-footer"><span className="admin-label">Fulfillment status</span><div className="admin-status-actions">{(['placed', 'preparing', 'delivered'] as OrderStatus[]).map((status) => <button type="button" key={status} className={order.status === status ? 'selected' : ''} disabled={statusMutation.isPending || order.status === status} onClick={() => void updateStatus(order.id, status)} data-testid={`button-status-${order.id}-${status}`}>{updatingId === order.id && updatingStatus === status && statusMutation.isPending ? <LoaderCircle className="spin" size={13} /> : null}{status === 'placed' ? 'Received' : status === 'preparing' ? 'Preparing' : 'Delivered'}</button>)}</div></div>
+            </article>)}</div>}
+        </>}
+    </main>
+  </Shell>;
+}
+
 function AuthPage({ kind }: { kind: 'sign-in' | 'sign-up' }) {
   return <main className="auth-page">
     <div className="auth-atmosphere"><span className="auth-orbit orbit-one" /><span className="auth-orbit orbit-two" /><div className="auth-note"><span className="eyebrow">A little thought goes a long way</span><p>Make something<br /><em>they’ll remember.</em></p><span className="note-rule" />Hamper Hub Studio</div></div>
@@ -503,6 +590,7 @@ function Routes() {
     <Route path="/" component={Home} />
     <Route path="/build"><ProtectedPage><OrderBuilder /></ProtectedPage></Route>
     <Route path="/my-orders"><ProtectedPage><OrdersPage /></ProtectedPage></Route>
+    <Route path="/admin"><ProtectedPage><AdminPage /></ProtectedPage></Route>
     <Route path="/sign-in/*?" component={() => <AuthPage kind="sign-in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage kind="sign-up" />} />
     <Route component={NotFound} />

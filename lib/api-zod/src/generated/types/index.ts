@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminAccess';
+export * from './adminOrderStatusInput';
 export * from './deliveryAddress';
 export * from './errorEnvelope';
 export * from './hamperOrder';

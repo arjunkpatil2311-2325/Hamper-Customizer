@@ -296,6 +296,151 @@ export const GetOrderResponse = zod.object({
 
 
 /**
+ * @summary List all hamper orders for the studio
+ */
+export const listAdminOrdersResponseDeliveryAddressRecipientNameMin = 2;
+export const listAdminOrdersResponseDeliveryAddressRecipientNameMax = 100;
+
+export const listAdminOrdersResponseDeliveryAddressRecipientPhoneMin = 7;
+export const listAdminOrdersResponseDeliveryAddressRecipientPhoneMax = 24;
+
+export const listAdminOrdersResponseDeliveryAddressAddressLine1Min = 5;
+export const listAdminOrdersResponseDeliveryAddressAddressLine1Max = 200;
+
+export const listAdminOrdersResponseDeliveryAddressAddressLine2Max = 200;
+
+export const listAdminOrdersResponseDeliveryAddressCityMin = 2;
+export const listAdminOrdersResponseDeliveryAddressCityMax = 100;
+
+export const listAdminOrdersResponseDeliveryAddressRegionMin = 2;
+export const listAdminOrdersResponseDeliveryAddressRegionMax = 100;
+
+export const listAdminOrdersResponseDeliveryAddressPostalCodeMin = 4;
+export const listAdminOrdersResponseDeliveryAddressPostalCodeMax = 12;
+
+export const listAdminOrdersResponseDeliveryAddressCountryMin = 2;
+export const listAdminOrdersResponseDeliveryAddressCountryMax = 80;
+
+
+
+export const ListAdminOrdersResponseItem = zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['placed', 'preparing', 'delivered']),
+  "items": zod.array(zod.object({
+  "productId": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "quantity": zod.number().int(),
+  "unitPrice": zod.number().int(),
+  "imageUrl": zod.string(),
+  "imageAlt": zod.string()
+})),
+  "budget": zod.number().int(),
+  "itemsSubtotal": zod.number().int(),
+  "packagingFee": zod.number().int(),
+  "deliveryFee": zod.number().int(),
+  "total": zod.number().int(),
+  "packagingOption": zod.enum(['none', 'signature', 'celebration']),
+  "personalizationName": zod.string().nullable(),
+  "giftMessage": zod.string().nullable(),
+  "photoObjectPath": zod.string().nullable(),
+  "deliveryDate": zod.coerce.date(),
+  "deliveryAddress": zod.object({
+  "recipientName": zod.string().min(listAdminOrdersResponseDeliveryAddressRecipientNameMin).max(listAdminOrdersResponseDeliveryAddressRecipientNameMax),
+  "recipientPhone": zod.string().min(listAdminOrdersResponseDeliveryAddressRecipientPhoneMin).max(listAdminOrdersResponseDeliveryAddressRecipientPhoneMax),
+  "addressLine1": zod.string().min(listAdminOrdersResponseDeliveryAddressAddressLine1Min).max(listAdminOrdersResponseDeliveryAddressAddressLine1Max),
+  "addressLine2": zod.string().max(listAdminOrdersResponseDeliveryAddressAddressLine2Max).nullish(),
+  "city": zod.string().min(listAdminOrdersResponseDeliveryAddressCityMin).max(listAdminOrdersResponseDeliveryAddressCityMax),
+  "region": zod.string().min(listAdminOrdersResponseDeliveryAddressRegionMin).max(listAdminOrdersResponseDeliveryAddressRegionMax),
+  "postalCode": zod.string().min(listAdminOrdersResponseDeliveryAddressPostalCodeMin).max(listAdminOrdersResponseDeliveryAddressPostalCodeMax),
+  "country": zod.string().min(listAdminOrdersResponseDeliveryAddressCountryMin).max(listAdminOrdersResponseDeliveryAddressCountryMax)
+}),
+  "createdAt": zod.coerce.date()
+})
+export const ListAdminOrdersResponse = zod.array(ListAdminOrdersResponseItem)
+
+
+/**
+ * @summary Check whether the signed-in user can open the studio panel
+ */
+export const GetAdminAccessResponse = zod.object({
+  "isAdmin": zod.boolean()
+})
+
+
+/**
+ * @summary Update a hamper order's fulfillment status
+ */
+export const UpdateAdminOrderStatusParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAdminOrderStatusBody = zod.object({
+  "status": zod.enum(['placed', 'preparing', 'delivered'])
+})
+
+export const updateAdminOrderStatusResponseDeliveryAddressRecipientNameMin = 2;
+export const updateAdminOrderStatusResponseDeliveryAddressRecipientNameMax = 100;
+
+export const updateAdminOrderStatusResponseDeliveryAddressRecipientPhoneMin = 7;
+export const updateAdminOrderStatusResponseDeliveryAddressRecipientPhoneMax = 24;
+
+export const updateAdminOrderStatusResponseDeliveryAddressAddressLine1Min = 5;
+export const updateAdminOrderStatusResponseDeliveryAddressAddressLine1Max = 200;
+
+export const updateAdminOrderStatusResponseDeliveryAddressAddressLine2Max = 200;
+
+export const updateAdminOrderStatusResponseDeliveryAddressCityMin = 2;
+export const updateAdminOrderStatusResponseDeliveryAddressCityMax = 100;
+
+export const updateAdminOrderStatusResponseDeliveryAddressRegionMin = 2;
+export const updateAdminOrderStatusResponseDeliveryAddressRegionMax = 100;
+
+export const updateAdminOrderStatusResponseDeliveryAddressPostalCodeMin = 4;
+export const updateAdminOrderStatusResponseDeliveryAddressPostalCodeMax = 12;
+
+export const updateAdminOrderStatusResponseDeliveryAddressCountryMin = 2;
+export const updateAdminOrderStatusResponseDeliveryAddressCountryMax = 80;
+
+
+
+export const UpdateAdminOrderStatusResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.enum(['placed', 'preparing', 'delivered']),
+  "items": zod.array(zod.object({
+  "productId": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "quantity": zod.number().int(),
+  "unitPrice": zod.number().int(),
+  "imageUrl": zod.string(),
+  "imageAlt": zod.string()
+})),
+  "budget": zod.number().int(),
+  "itemsSubtotal": zod.number().int(),
+  "packagingFee": zod.number().int(),
+  "deliveryFee": zod.number().int(),
+  "total": zod.number().int(),
+  "packagingOption": zod.enum(['none', 'signature', 'celebration']),
+  "personalizationName": zod.string().nullable(),
+  "giftMessage": zod.string().nullable(),
+  "photoObjectPath": zod.string().nullable(),
+  "deliveryDate": zod.coerce.date(),
+  "deliveryAddress": zod.object({
+  "recipientName": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressRecipientNameMin).max(updateAdminOrderStatusResponseDeliveryAddressRecipientNameMax),
+  "recipientPhone": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressRecipientPhoneMin).max(updateAdminOrderStatusResponseDeliveryAddressRecipientPhoneMax),
+  "addressLine1": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressAddressLine1Min).max(updateAdminOrderStatusResponseDeliveryAddressAddressLine1Max),
+  "addressLine2": zod.string().max(updateAdminOrderStatusResponseDeliveryAddressAddressLine2Max).nullish(),
+  "city": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressCityMin).max(updateAdminOrderStatusResponseDeliveryAddressCityMax),
+  "region": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressRegionMin).max(updateAdminOrderStatusResponseDeliveryAddressRegionMax),
+  "postalCode": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressPostalCodeMin).max(updateAdminOrderStatusResponseDeliveryAddressPostalCodeMax),
+  "country": zod.string().min(updateAdminOrderStatusResponseDeliveryAddressCountryMin).max(updateAdminOrderStatusResponseDeliveryAddressCountryMax)
+}),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * Returns a short-lived URL for a direct private image upload.
  * @summary Request a secure photo upload URL
  */
@@ -329,7 +474,7 @@ export const RequestUploadUrlResponse = zod.object({
 
 
 /**
- * Requires sign-in and verifies that the current customer owns the photo.
+ * Requires sign-in and verifies that the customer owns the photo or the account is the studio admin.
  * @summary Read a private uploaded photo
  */
 export const GetStorageObjectParams = zod.object({

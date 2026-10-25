@@ -8,14 +8,24 @@ import {
 import {
   CreateOrderBody,
   CreateOrderResponse,
+  GetAdminAccessResponse,
   GetOrderParams,
   GetOrderResponse,
+  ListAdminOrdersResponse,
   ListOrdersResponse,
+  UpdateAdminOrderStatusBody,
+  UpdateAdminOrderStatusParams,
+  UpdateAdminOrderStatusResponse,
 } from "@workspace/api-zod";
 import { db, hamperOrders, storageUploads } from "@workspace/db";
 import { Router, type IRouter } from "express";
 import { products } from "../data/products";
-import { getCustomerId, requireCustomer } from "../middlewares/customerAuth";
+import {
+  getCustomerId,
+  isStudioAdmin,
+  requireCustomer,
+  requireStudioAdmin,
+} from "../middlewares/customerAuth";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { errorPayload } from "../lib/httpErrors";
 
@@ -27,6 +37,60 @@ const packagingFees = {
   celebration: 149,
 } as const;
 const deliveryFee = 79;
+
+router.get(
+  "/admin/access",
+  requireCustomer,
+  async (req, res): Promise<void> => {
+    try {
+      res.json(
+        GetAdminAccessResponse.parse({ isAdmin: await isStudioAdmin(req) }),
+      );
+    } catch (error) {
+      req.log.error({ err: error }, "Unable to check studio access");
+      res.status(503).json(errorPayload("Studio access is temporarily unavailable"));
+    }
+  },
+);
+
+router.get(
+  "/admin/orders",
+  requireStudioAdmin,
+  async (req, res): Promise<void> => {
+    const orders = await db
+      .select()
+      .from(hamperOrders)
+      .orderBy(desc(hamperOrders.createdAt));
+
+    res.json(ListAdminOrdersResponse.parse(orders));
+  },
+);
+
+router.patch(
+  "/admin/orders/:id/status",
+  requireStudioAdmin,
+  async (req, res): Promise<void> => {
+    const params = UpdateAdminOrderStatusParams.safeParse(req.params);
+    const body = UpdateAdminOrderStatusBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json(errorPayload("Choose a valid order status"));
+      return;
+    }
+
+    const [order] = await db
+      .update(hamperOrders)
+      .set({ status: body.data.status })
+      .where(eq(hamperOrders.id, params.data.id))
+      .returning();
+
+    if (!order) {
+      res.status(404).json(errorPayload("Order not found"));
+      return;
+    }
+
+    res.json(UpdateAdminOrderStatusResponse.parse(order));
+  },
+);
 
 router.get("/orders", requireCustomer, async (req, res): Promise<void> => {
   const userId = getCustomerId(req);

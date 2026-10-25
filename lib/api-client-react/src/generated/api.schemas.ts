@@ -50,6 +50,14 @@ export const OrderStatus = {
   delivered: 'delivered',
 } as const;
 
+export interface AdminOrderStatusInput {
+  status: OrderStatus;
+}
+
+export interface AdminAccess {
+  isAdmin: boolean;
+}
+
 export interface OrderItemInput {
   /** @minLength 1 */
   productId: string;

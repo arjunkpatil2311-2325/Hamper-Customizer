@@ -16,6 +16,8 @@ tags:
     description: Customer hamper orders.
   - name: storage
     description: Secure personalization photo uploads.
+  - name: admin
+    description: Studio-only order operations.
 paths:
   /healthz:
     get:
@@ -123,6 +125,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/orders:
+    get:
+      operationId: listAdminOrders
+      tags: [admin]
+      summary: List all hamper orders for the studio
+      responses:
+        "200":
+          description: All hamper orders, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HamperOrder"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Studio admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/access:
+    get:
+      operationId: getAdminAccess
+      tags: [admin]
+      summary: Check whether the signed-in user can open the studio panel
+      responses:
+        "200":
+          description: Studio access decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccess"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/orders/{id}/status:
+    patch:
+      operationId: updateAdminOrderStatus
+      tags: [admin]
+      summary: Update a hamper order's fulfillment status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminOrderStatusInput"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HamperOrder"
+        "400":
+          description: Invalid status or order id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Studio admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /storage/uploads/request-url:
     post:
       operationId: requestUploadUrl
@@ -159,7 +253,7 @@ paths:
       operationId: getStorageObject
       tags: [storage]
       summary: Read a private uploaded photo
-      description: Requires sign-in and verifies that the current customer owns the photo.
+      description: Requires sign-in and verifies that the customer owns the photo or the account is the studio admin.
       parameters:
         - name: objectPath
           in: path
@@ -229,6 +323,18 @@ components:
     OrderStatus:
       type: string
       enum: [placed, preparing, delivered]
+    AdminOrderStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+    AdminAccess:
+      type: object
+      required: [isAdmin]
+      properties:
+        isAdmin:
+          type: boolean
     OrderItemInput:
       type: object
       required: [productId, quantity]

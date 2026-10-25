@@ -25,6 +25,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminAccess,
+  AdminOrderStatusInput,
   ErrorEnvelope,
   HamperOrder,
   HamperOrderInput,
@@ -554,6 +556,297 @@ export function useGetOrder<TData = Awaited<ReturnType<typeof getOrder>>, TError
 
 
 
+export const getListAdminOrdersUrl = () => {
+
+
+
+
+  return `/api/admin/orders`
+}
+
+/**
+ * @summary List all hamper orders for the studio
+ */
+export const listAdminOrders = async ( options?: Parameters<typeof customFetch>[1]): Promise<HamperOrder[]> => {
+
+  return customFetch<HamperOrder[]>(getListAdminOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminOrdersQueryKey = () => {
+    return [
+    `/api/admin/orders`
+    ] as const;
+    }
+
+
+export const getListAdminOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminOrders>>, TError = ErrorType<ErrorEnvelope>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOrders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminOrdersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminOrders>>> = ({ signal }) => listAdminOrders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminOrders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminOrders>>>
+export type ListAdminOrdersQueryError = ErrorType<ErrorEnvelope>
+
+
+export function useListAdminOrders<TData = Awaited<ReturnType<typeof listAdminOrders>>, TError = ErrorType<ErrorEnvelope>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOrders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminOrders<TData = Awaited<ReturnType<typeof listAdminOrders>>, TError = ErrorType<ErrorEnvelope>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOrders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminOrders<TData = Awaited<ReturnType<typeof listAdminOrders>>, TError = ErrorType<ErrorEnvelope>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOrders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List all hamper orders for the studio
+ */
+
+export function useListAdminOrders<TData = Awaited<ReturnType<typeof listAdminOrders>>, TError = ErrorType<ErrorEnvelope>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminOrders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminAccessUrl = () => {
+
+
+
+
+  return `/api/admin/access`
+}
+
+/**
+ * @summary Check whether the signed-in user can open the studio panel
+ */
+export const getAdminAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminAccess> => {
+
+  return customFetch<AdminAccess>(getGetAdminAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminAccessQueryKey = () => {
+    return [
+    `/api/admin/access`
+    ] as const;
+    }
+
+
+export const getGetAdminAccessQueryOptions = <TData = Awaited<ReturnType<typeof getAdminAccess>>, TError = ErrorType<ErrorEnvelope>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminAccess>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminAccess>>> = ({ signal }) => getAdminAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminAccess>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAdminAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminAccess>>>
+export type GetAdminAccessQueryError = ErrorType<ErrorEnvelope>
+
+
+export function useGetAdminAccess<TData = Awaited<ReturnType<typeof getAdminAccess>>, TError = ErrorType<ErrorEnvelope>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminAccess>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminAccess>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminAccess>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminAccess<TData = Awaited<ReturnType<typeof getAdminAccess>>, TError = ErrorType<ErrorEnvelope>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminAccess>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminAccess>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminAccess>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminAccess<TData = Awaited<ReturnType<typeof getAdminAccess>>, TError = ErrorType<ErrorEnvelope>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminAccess>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether the signed-in user can open the studio panel
+ */
+
+export function useGetAdminAccess<TData = Awaited<ReturnType<typeof getAdminAccess>>, TError = ErrorType<ErrorEnvelope>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminAccess>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAdminAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminOrderStatusUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/orders/${id}/status`
+}
+
+/**
+ * @summary Update a hamper order's fulfillment status
+ */
+export const updateAdminOrderStatus = async (id: string,
+    adminOrderStatusInput: AdminOrderStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<HamperOrder> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<HamperOrder>(getUpdateAdminOrderStatusUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminOrderStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminOrderStatusMutationKey = () => ['updateAdminOrderStatus'] as const;
+
+export const getUpdateAdminOrderStatusMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminOrderStatus>>, TError,UpdateAdminOrderStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminOrderStatus>>, TError,UpdateAdminOrderStatusMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminOrderStatusMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminOrderStatus>>, UpdateAdminOrderStatusMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAdminOrderStatus(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminOrderStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminOrderStatus>>>
+    export type UpdateAdminOrderStatusMutationBody = BodyType<AdminOrderStatusInput>
+    export type UpdateAdminOrderStatusMutationError = ErrorType<ErrorEnvelope>
+    export type UpdateAdminOrderStatusMutationVariables = {id: string;data: BodyType<AdminOrderStatusInput>}
+
+    /**
+ * @summary Update a hamper order's fulfillment status
+ */
+export const useUpdateAdminOrderStatus = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminOrderStatus>>, TError,UpdateAdminOrderStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminOrderStatus>>,
+        TError,
+        UpdateAdminOrderStatusMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminOrderStatusMutationOptions(options), queryClient);
+    }
+
 export const getRequestUploadUrlUrl = () => {
 
 
@@ -652,7 +945,7 @@ export const getGetStorageObjectUrl = (objectPath: string,) => {
 }
 
 /**
- * Requires sign-in and verifies that the current customer owns the photo.
+ * Requires sign-in and verifies that the customer owns the photo or the account is the studio admin.
  * @summary Read a private uploaded photo
  */
 export const getStorageObject = async (objectPath: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
