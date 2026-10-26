@@ -3,6 +3,7 @@ import {
   and,
   desc,
   eq,
+  inArray,
   isNull,
 } from "drizzle-orm";
 import {
@@ -17,17 +18,19 @@ import {
   UpdateAdminOrderStatusParams,
   UpdateAdminOrderStatusResponse,
 } from "@workspace/api-zod";
-import { db, hamperOrders, storageUploads } from "@workspace/db";
+import { db, hamperOrders, products, storageUploads } from "@workspace/db";
 import { Router, type IRouter } from "express";
-import { products } from "../data/products";
 import {
   getCustomerId,
   isStudioAdmin,
   requireCustomer,
   requireStudioAdmin,
 } from "../middlewares/customerAuth";
-import { ObjectStorageService } from "../lib/objectStorage";
 import { errorPayload } from "../lib/httpErrors";
+import {
+  ObjectNotFoundError,
+  ObjectStorageService,
+} from "../lib/objectStorage";
 
 const router: IRouter = Router();
 const objectStorage = new ObjectStorageService();
@@ -37,6 +40,8 @@ const packagingFees = {
   celebration: 149,
 } as const;
 const deliveryFee = 79;
+
+class OrderRequestError extends Error {}
 
 router.get(
   "/admin/access",
@@ -149,44 +154,12 @@ router.post("/orders", requireCustomer, async (req, res): Promise<void> => {
   }
 
   const input = parsed.data;
-  const selectedItems = input.items.map((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId);
-    return product ? { product, quantity: item.quantity } : null;
-  });
-
-  if (selectedItems.some((item) => item === null)) {
-    res.status(400).json(errorPayload("One or more hamper items are unavailable"));
+  const requestedProductIds = input.items.map((item) => item.productId);
+  if (new Set(requestedProductIds).size !== requestedProductIds.length) {
+    res.status(400).json(errorPayload("Each hamper item can only be added once."));
     return;
   }
-
-  const items = selectedItems.map((selection) => {
-    const { product, quantity } = selection!;
-    return {
-      productId: product.id,
-      name: product.name,
-      category: product.category,
-      quantity,
-      unitPrice: product.price,
-      imageUrl: product.imageUrl,
-      imageAlt: product.imageAlt,
-    };
-  });
-
-  const itemsSubtotal = items.reduce(
-    (subtotal, item) => subtotal + item.unitPrice * item.quantity,
-    0,
-  );
-  const packagingFee = packagingFees[input.packagingOption];
-  const total = itemsSubtotal + packagingFee + deliveryFee;
-
-  if (total > input.budget) {
-    res.status(400).json(
-      errorPayload(
-        "Your hamper total is over budget. Adjust your items or budget and try again.",
-      ),
-    );
-    return;
-  }
+  const productIds = [...requestedProductIds].sort();
 
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
@@ -206,6 +179,45 @@ router.post("/orders", requireCustomer, async (req, res): Promise<void> => {
   const id = randomUUID();
   try {
     const order = await db.transaction(async (tx) => {
+      const catalog = await tx
+        .select()
+        .from(products)
+        .where(inArray(products.id, productIds))
+        .orderBy(products.id)
+        .for("update");
+      const catalogById = new Map(catalog.map((product) => [product.id, product]));
+
+      const items = input.items.map((item) => {
+        const product = catalogById.get(item.productId);
+        if (!product || !product.active || product.stock < item.quantity) {
+          throw new OrderRequestError(
+            "One or more hamper items are unavailable or out of stock.",
+          );
+        }
+
+        return {
+          productId: product.id,
+          name: product.name,
+          category: product.category,
+          quantity: item.quantity,
+          unitPrice: product.price,
+          imageUrl: product.imageUrl,
+          imageAlt: product.imageAlt,
+        };
+      });
+      const itemsSubtotal = items.reduce(
+        (subtotal, item) => subtotal + item.unitPrice * item.quantity,
+        0,
+      );
+      const packagingFee = packagingFees[input.packagingOption];
+      const total = itemsSubtotal + packagingFee + deliveryFee;
+
+      if (total > input.budget) {
+        throw new OrderRequestError(
+          "Your hamper total is over budget. Adjust your items or budget and try again.",
+        );
+      }
+
       if (photoObjectPath) {
         const [upload] = await tx
           .select()
@@ -224,15 +236,48 @@ router.post("/orders", requireCustomer, async (req, res): Promise<void> => {
           throw new Error("PHOTO_UPLOAD_NOT_AVAILABLE");
         }
 
-        await objectStorage.trySetObjectEntityAclPolicy(photoObjectPath, {
-          owner: userId,
-          visibility: "private",
-        });
+        let photoMetadata: { size: number; contentType: string };
+        try {
+          photoMetadata =
+            await objectStorage.getObjectEntityMetadata(photoObjectPath);
+        } catch (error) {
+          if (error instanceof ObjectNotFoundError) {
+            throw new OrderRequestError(
+              "Please upload your photo again before placing the order.",
+            );
+          }
+          throw error;
+        }
+        if (
+          photoMetadata.size !== upload.size ||
+          photoMetadata.contentType !== upload.contentType
+        ) {
+          throw new OrderRequestError(
+            "Please upload your photo again before placing the order.",
+          );
+        }
 
         await tx
           .update(storageUploads)
           .set({ claimedAt: new Date() })
           .where(eq(storageUploads.objectPath, photoObjectPath));
+      }
+
+      for (const item of input.items) {
+        const product = catalogById.get(item.productId);
+        if (!product) {
+          throw new OrderRequestError(
+            "One or more hamper items are unavailable or out of stock.",
+          );
+        }
+
+        await tx
+          .update(products)
+          .set({
+            stock: product.stock - item.quantity,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, product.id));
       }
 
       const [created] = await tx
@@ -264,6 +309,11 @@ router.post("/orders", requireCustomer, async (req, res): Promise<void> => {
 
     res.status(201).json(CreateOrderResponse.parse(order));
   } catch (error) {
+    if (error instanceof OrderRequestError) {
+      res.status(400).json(errorPayload(error.message));
+      return;
+    }
+
     if (error instanceof Error && error.message === "PHOTO_UPLOAD_NOT_AVAILABLE") {
       res.status(400).json(
         errorPayload("Please upload your photo again before placing the order."),

@@ -1,12 +1,22 @@
+import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { db, storageUploads } from "@workspace/db";
-import { Router, type IRouter, type Request, type Response } from "express";
-import { ObjectPermission } from "../lib/objectAcl";
 import {
+  Router,
+  raw,
+  type IRouter,
+  type Request,
+  type Response,
+} from "express";
+import {
+  InvalidUploadTokenError,
+  isSupportedImageType,
+  maxUploadedImageSize,
   ObjectNotFoundError,
   ObjectStorageService,
 } from "../lib/objectStorage";
@@ -19,6 +29,12 @@ import { errorPayload } from "../lib/httpErrors";
 
 const router: IRouter = Router();
 const objectStorage = new ObjectStorageService();
+const uploadIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const parseImageUpload = raw({
+  type: ["image/jpeg", "image/png", "image/webp"],
+  limit: maxUploadedImageSize,
+});
 
 router.post(
   "/storage/uploads/request-url",
@@ -33,15 +49,22 @@ router.post(
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json(
-        errorPayload("Choose a JPG, PNG, or WEBP image up to 5 MB."),
+        errorPayload("Choose a JPG, PNG, or WEBP image up to 4 MB."),
       );
       return;
     }
 
+    const { name, size, contentType } = parsed.data;
+    const id = randomUUID();
+    const objectPath = `/objects/uploads/${id}`;
+
     try {
-      const { name, size, contentType } = parsed.data;
-      const uploadURL = await objectStorage.getObjectEntityUploadURL();
-      const objectPath = objectStorage.normalizeObjectEntityPath(uploadURL);
+      const { uploadURL, uploadToken } = objectStorage.createUploadURL({
+        id,
+        userId,
+        contentType,
+        size,
+      });
 
       await db.insert(storageUploads).values({
         objectPath,
@@ -53,6 +76,7 @@ router.post(
       res.json(
         RequestUploadUrlResponse.parse({
           uploadURL,
+          uploadToken,
           objectPath,
           metadata: { name, size, contentType },
         }),
@@ -66,32 +90,102 @@ router.post(
   },
 );
 
-router.get(
-  "/storage/public-objects/*filePath",
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const rawPath = req.params.filePath;
-      const filePath = Array.isArray(rawPath) ? rawPath.join("/") : rawPath;
-      const file = await objectStorage.searchPublicObject(filePath);
-      if (!file) {
-        res.status(404).json(errorPayload("File not found"));
+router.put(
+  "/storage/uploads/:id",
+  requireCustomer,
+  (req, res, next) => {
+    parseImageUpload(req, res, (error) => {
+      if (!error) {
+        next();
         return;
       }
 
-      const response = await objectStorage.downloadObject(file);
-      res.status(response.status);
-      response.headers.forEach((value, key) => res.setHeader(key, value));
-
-      if (response.body) {
-        Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
-      } else {
-        res.end();
+      const status = (error as { status?: number }).status;
+      if (status === 413) {
+        res.status(413).json(errorPayload("Choose an image up to 4 MB."));
+        return;
       }
-    } catch (error) {
-      req.log.error({ err: error }, "Error serving public object");
-      res.status(500).json(
-        errorPayload("Failed to serve public object"),
+      if (status === 415) {
+        res.status(415).json(
+          errorPayload("Choose a JPEG, PNG, or WebP image."),
+        );
+        return;
+      }
+
+      next(error);
+    });
+  },
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = getCustomerId(req);
+    const rawId = req.params.id;
+    const id = Array.isArray(rawId) ? rawId[0] ?? "" : rawId;
+    const token = req.get("x-upload-token") ?? "";
+    const contentType = req.get("content-type") ?? "";
+    const body = Buffer.isBuffer(req.body) ? req.body : null;
+
+    if (!userId) {
+      res.status(401).json(errorPayload("Sign in required"));
+      return;
+    }
+    if (!uploadIdPattern.test(id)) {
+      res.status(400).json(errorPayload("Invalid upload"));
+      return;
+    }
+    if (!isSupportedImageType(contentType) || !body || body.length < 1) {
+      res.status(400).json(
+        errorPayload("Choose a JPEG, PNG, or WebP image up to 4 MB."),
       );
+      return;
+    }
+
+    const objectPath = `/objects/uploads/${id}`;
+
+    try {
+      const [upload] = await db
+        .select()
+        .from(storageUploads)
+        .where(
+          and(
+            eq(storageUploads.objectPath, objectPath),
+            eq(storageUploads.userId, userId),
+            isNull(storageUploads.claimedAt),
+          ),
+        )
+        .limit(1);
+
+      if (!upload) {
+        res.status(404).json(errorPayload("Upload not found or already used."));
+        return;
+      }
+
+      objectStorage.validateUploadToken(token, {
+        id,
+        userId,
+        contentType: upload.contentType,
+        size: upload.size,
+      });
+
+      if (
+        contentType !== upload.contentType ||
+        body.length !== upload.size ||
+        body.length > maxUploadedImageSize
+      ) {
+        res.status(400).json(
+          errorPayload("The uploaded image does not match its upload request."),
+        );
+        return;
+      }
+
+      await objectStorage.uploadObjectEntity(id, contentType, body);
+      res.status(204).end();
+    } catch (error) {
+      if (error instanceof InvalidUploadTokenError) {
+        res.status(400).json(errorPayload(error.message));
+        return;
+      }
+
+      req.log.error({ err: error }, "Unable to save private image");
+      res.status(500).json(errorPayload("The image could not be saved."));
     }
   },
 );
@@ -106,33 +200,36 @@ router.get(
       return;
     }
 
-    try {
-      const rawPath = req.params.path;
-      const wildcardPath = Array.isArray(rawPath) ? rawPath.join("/") : rawPath;
-      const objectPath = `/objects/${wildcardPath}`;
-      const objectFile = await objectStorage.getObjectEntityFile(objectPath);
-      const canRead = await objectStorage.canAccessObjectEntity({
-        userId,
-        objectFile,
-        requestedPermission: ObjectPermission.READ,
-      });
+    const rawPath = req.params.path;
+    const wildcardPath = Array.isArray(rawPath) ? rawPath.join("/") : rawPath;
+    const objectPath = `/objects/${wildcardPath}`;
 
-      if (!canRead && !(await isStudioAdmin(req))) {
+    try {
+      const [upload] = await db
+        .select()
+        .from(storageUploads)
+        .where(eq(storageUploads.objectPath, objectPath))
+        .limit(1);
+
+      if (!upload) {
+        res.status(404).json(errorPayload("Photo not found"));
+        return;
+      }
+
+      if (upload.userId !== userId && !(await isStudioAdmin(req))) {
         res.status(403).json(
           errorPayload("You do not have access to this photo"),
         );
         return;
       }
 
-      const response = await objectStorage.downloadObject(objectFile);
-      res.status(response.status);
-      response.headers.forEach((value, key) => res.setHeader(key, value));
-
-      if (response.body) {
-        Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
-      } else {
-        res.end();
-      }
+      const object = await objectStorage.getObjectEntity(objectPath);
+      res.status(object.statusCode);
+      res.setHeader("Content-Type", object.blob.contentType);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Length", String(object.blob.size));
+      Readable.fromWeb(object.stream).pipe(res);
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
         res.status(404).json(errorPayload("Photo not found"));
@@ -140,9 +237,7 @@ router.get(
       }
 
       req.log.error({ err: error }, "Error serving private photo");
-      res.status(500).json(
-        errorPayload("Failed to serve private photo"),
-      );
+      res.status(500).json(errorPayload("Failed to serve private photo"));
     }
   },
 );

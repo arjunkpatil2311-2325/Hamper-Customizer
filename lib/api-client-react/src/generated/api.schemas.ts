@@ -30,6 +30,52 @@ export interface Product {
   imageUrl: string;
   imageAlt: string;
   featured: boolean;
+  /** @minimum 0 */
+  stock: number;
+  active: boolean;
+}
+
+export type AdminProductInputCategory = typeof AdminProductInputCategory[keyof typeof AdminProductInputCategory];
+
+
+export const AdminProductInputCategory = {
+  sweet: 'sweet',
+  savoury: 'savoury',
+  'self-care': 'self-care',
+  home: 'home',
+  keepsake: 'keepsake',
+} as const;
+
+export interface AdminProductInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  description: string;
+  category: AdminProductInputCategory;
+  /**
+     * @minimum 1
+     * @maximum 2147483647
+     */
+  price: number;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  imageAlt: string;
+  /** @maxLength 512 */
+  imageObjectPath?: string;
+  /**
+     * @minimum 0
+     * @maximum 2147483647
+     */
+  stock: number;
+  active: boolean;
 }
 
 export type PackagingOption = typeof PackagingOption[keyof typeof PackagingOption];
@@ -192,7 +238,7 @@ export interface UploadUrlRequest {
   name: string;
   /**
      * @minimum 1
-     * @maximum 5242880
+     * @maximum 4194304
      */
   size: number;
   contentType: UploadUrlRequestContentType;
@@ -200,6 +246,8 @@ export interface UploadUrlRequest {
 
 export interface UploadUrlResponse {
   uploadURL: string;
+  /** Short-lived token bound to the signed-in user and upload constraints. */
+  uploadToken: string;
   objectPath: string;
   metadata?: UploadUrlRequest;
 }

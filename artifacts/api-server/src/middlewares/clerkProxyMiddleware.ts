@@ -62,6 +62,7 @@ export function clerkProxyMiddleware(): RequestHandler {
   if (!secretKey) {
     return (_req, _res, next) => next();
   }
+  const proxyPath = process.env.VERCEL ? '/__clerk' : CLERK_PROXY_PATH;
 
   return createProxyMiddleware({
     target: CLERK_FAPI,
@@ -70,7 +71,7 @@ export function clerkProxyMiddleware(): RequestHandler {
     // proxyRes); the deployment edge rejects chunked proxied responses.
     selfHandleResponse: true,
     pathRewrite: (path: string) =>
-      path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ''),
+      path.replace(new RegExp(`^${proxyPath}`), ''),
     on: {
       proxyReq: (proxyReq, req) => {
         const protocol = req.headers['x-forwarded-proto'] || 'https';

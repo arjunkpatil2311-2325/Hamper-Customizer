@@ -18,8 +18,10 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary List products available for custom hampers
+ * @summary List active, in-stock products available for custom hampers
  */
+
+export const listProductsResponseStockMin = 0;
 
 
 
@@ -31,9 +33,21 @@ export const ListProductsResponseItem = zod.object({
   "price": zod.number().int().min(1),
   "imageUrl": zod.string(),
   "imageAlt": zod.string(),
-  "featured": zod.boolean()
+  "featured": zod.boolean(),
+  "stock": zod.number().int().min(listProductsResponseStockMin),
+  "active": zod.boolean()
 })
 export const ListProductsResponse = zod.array(ListProductsResponseItem)
+
+
+/**
+ * @summary Get a product image
+ */
+export const GetProductImageParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetProductImageResponse = zod.unknown()
 
 
 /**
@@ -361,6 +375,155 @@ export const ListAdminOrdersResponse = zod.array(ListAdminOrdersResponseItem)
 
 
 /**
+ * @summary List all products for the studio
+ */
+
+export const listAdminProductsResponseStockMin = 0;
+
+
+
+export const ListAdminProductsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "price": zod.number().int().min(1),
+  "imageUrl": zod.string(),
+  "imageAlt": zod.string(),
+  "featured": zod.boolean(),
+  "stock": zod.number().int().min(listAdminProductsResponseStockMin),
+  "active": zod.boolean()
+})
+export const ListAdminProductsResponse = zod.array(ListAdminProductsResponseItem)
+
+
+/**
+ * @summary Add a product to the catalog
+ */
+export const createAdminProductBodyNameMax = 100;
+
+export const createAdminProductBodyDescriptionMax = 1000;
+
+export const createAdminProductBodyPriceMax = 2147483647;
+
+export const createAdminProductBodyImageAltMax = 255;
+
+export const createAdminProductBodyImageObjectPathMax = 512;
+
+export const createAdminProductBodyStockMin = 0;
+export const createAdminProductBodyStockMax = 2147483647;
+
+
+
+export const CreateAdminProductBody = zod.object({
+  "name": zod.string().min(1).max(createAdminProductBodyNameMax),
+  "description": zod.string().min(1).max(createAdminProductBodyDescriptionMax),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "price": zod.number().int().min(1).max(createAdminProductBodyPriceMax),
+  "imageAlt": zod.string().min(1).max(createAdminProductBodyImageAltMax),
+  "imageObjectPath": zod.string().max(createAdminProductBodyImageObjectPathMax).optional(),
+  "stock": zod.number().int().min(createAdminProductBodyStockMin).max(createAdminProductBodyStockMax),
+  "active": zod.boolean()
+})
+
+
+export const createAdminProductResponseStockMin = 0;
+
+
+
+export const CreateAdminProductResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "price": zod.number().int().min(1),
+  "imageUrl": zod.string(),
+  "imageAlt": zod.string(),
+  "featured": zod.boolean(),
+  "stock": zod.number().int().min(createAdminProductResponseStockMin),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Update a catalog product
+ */
+export const UpdateAdminProductParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateAdminProductBodyNameMax = 100;
+
+export const updateAdminProductBodyDescriptionMax = 1000;
+
+export const updateAdminProductBodyPriceMax = 2147483647;
+
+export const updateAdminProductBodyImageAltMax = 255;
+
+export const updateAdminProductBodyImageObjectPathMax = 512;
+
+export const updateAdminProductBodyStockMin = 0;
+export const updateAdminProductBodyStockMax = 2147483647;
+
+
+
+export const UpdateAdminProductBody = zod.object({
+  "name": zod.string().min(1).max(updateAdminProductBodyNameMax),
+  "description": zod.string().min(1).max(updateAdminProductBodyDescriptionMax),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "price": zod.number().int().min(1).max(updateAdminProductBodyPriceMax),
+  "imageAlt": zod.string().min(1).max(updateAdminProductBodyImageAltMax),
+  "imageObjectPath": zod.string().max(updateAdminProductBodyImageObjectPathMax).optional(),
+  "stock": zod.number().int().min(updateAdminProductBodyStockMin).max(updateAdminProductBodyStockMax),
+  "active": zod.boolean()
+})
+
+
+export const updateAdminProductResponseStockMin = 0;
+
+
+
+export const UpdateAdminProductResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "price": zod.number().int().min(1),
+  "imageUrl": zod.string(),
+  "imageAlt": zod.string(),
+  "featured": zod.boolean(),
+  "stock": zod.number().int().min(updateAdminProductResponseStockMin),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Archive a product without deleting its order history
+ */
+export const ArchiveAdminProductParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+export const archiveAdminProductResponseStockMin = 0;
+
+
+
+export const ArchiveAdminProductResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "category": zod.enum(['sweet', 'savoury', 'self-care', 'home', 'keepsake']),
+  "price": zod.number().int().min(1),
+  "imageUrl": zod.string(),
+  "imageAlt": zod.string(),
+  "featured": zod.boolean(),
+  "stock": zod.number().int().min(archiveAdminProductResponseStockMin),
+  "active": zod.boolean()
+})
+
+
+/**
  * @summary Check whether the signed-in user can open the studio panel
  */
 export const GetAdminAccessResponse = zod.object({
@@ -446,7 +609,7 @@ export const UpdateAdminOrderStatusResponse = zod.object({
  */
 export const requestUploadUrlBodyNameMax = 255;
 
-export const requestUploadUrlBodySizeMax = 5242880;
+export const requestUploadUrlBodySizeMax = 4194304;
 
 
 
@@ -458,12 +621,13 @@ export const RequestUploadUrlBody = zod.object({
 
 export const requestUploadUrlResponseMetadataNameMax = 255;
 
-export const requestUploadUrlResponseMetadataSizeMax = 5242880;
+export const requestUploadUrlResponseMetadataSizeMax = 4194304;
 
 
 
 export const RequestUploadUrlResponse = zod.object({
-  "uploadURL": zod.string().url(),
+  "uploadURL": zod.string(),
+  "uploadToken": zod.string().describe('Short-lived token bound to the signed-in user and upload constraints.'),
   "objectPath": zod.string(),
   "metadata": zod.object({
   "name": zod.string().min(1).max(requestUploadUrlResponseMetadataNameMax),
@@ -471,6 +635,20 @@ export const RequestUploadUrlResponse = zod.object({
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
 }).optional()
 })
+
+
+/**
+ * @summary Upload a private image using a short-lived user-bound upload token
+ */
+export const UploadStorageObjectParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const UploadStorageObjectHeader = zod.object({
+  "token": zod.string()
+})
+
+export const UploadStorageObjectResponse = zod.void()
 
 
 /**

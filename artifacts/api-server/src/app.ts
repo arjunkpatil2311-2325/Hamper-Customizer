@@ -32,7 +32,8 @@ app.use(
     },
   }),
 );
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+const clerkProxyPath = process.env.VERCEL ? "/__clerk" : CLERK_PROXY_PATH;
+app.use(clerkProxyPath, clerkProxyMiddleware());
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -46,6 +47,6 @@ app.use(
   })),
 );
 
-app.use("/api", router);
+app.use(process.env.VERCEL ? "/" : "/api", router);
 
 export default app;

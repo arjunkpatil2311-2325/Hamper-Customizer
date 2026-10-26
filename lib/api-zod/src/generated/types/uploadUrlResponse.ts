@@ -9,6 +9,8 @@ import type { UploadUrlRequest } from './uploadUrlRequest';
 
 export interface UploadUrlResponse {
   uploadURL: string;
+  /** Short-lived token bound to the signed-in user and upload constraints. */
+  uploadToken: string;
   objectPath: string;
   metadata?: UploadUrlRequest;
 }

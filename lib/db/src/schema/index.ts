@@ -19,3 +19,5 @@
 
 export * from "./hamper-orders";
 export * from "./storage-uploads";
+export * from "./product-images";
+export * from "./products";

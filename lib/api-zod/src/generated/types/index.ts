@@ -8,6 +8,8 @@
 
 export * from './adminAccess';
 export * from './adminOrderStatusInput';
+export * from './adminProductInput';
+export * from './adminProductInputCategory';
 export * from './deliveryAddress';
 export * from './errorEnvelope';
 export * from './hamperOrder';

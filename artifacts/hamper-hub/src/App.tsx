@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleHelp,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, Archive, Check, ChevronDown, CircleHelp,
   Gift, Heart, ImagePlus, Leaf, LoaderCircle, LockKeyhole, Minus, PackageCheck,
-  Plus, Sparkles, Trash2, Truck, X, ClipboardList, MapPin, Phone, RefreshCw,
+  Pencil, Plus, Search, Sparkles, Trash2, Truck, X, ClipboardList, MapPin, Phone, RefreshCw,
 } from 'lucide-react';
 import {
-  getListAdminOrdersQueryKey, getListOrdersQueryKey, useCreateOrder, useGetAdminAccess, useListAdminOrders,
-  useUpdateAdminOrderStatus, useListOrders, useListProducts, useRequestUploadUrl,
+  getListAdminOrdersQueryKey, getListAdminProductsQueryKey, getListOrdersQueryKey, getListProductsQueryKey,
+  useArchiveAdminProduct, useCreateAdminProduct, useCreateOrder, useGetAdminAccess, useListAdminOrders,
+  useListAdminProducts, useUpdateAdminOrderStatus, useUpdateAdminProduct, useListOrders, useListProducts, useRequestUploadUrl,
 } from '@workspace/api-client-react';
-import type { DeliveryAddress, HamperOrder, HamperOrderInput, PackagingOption, Product, OrderStatus } from '@workspace/api-client-react';
+import type { AdminProductInput, DeliveryAddress, HamperOrder, HamperOrderInput, PackagingOption, Product, ProductCategory, OrderStatus } from '@workspace/api-client-react';
 import { Link, Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import NotFound from '@/pages/not-found';
 
@@ -20,6 +21,11 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const money = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+type SupportedImageType = 'image/jpeg' | 'image/png' | 'image/webp';
+
+function isSupportedImageType(value: string): value is SupportedImageType {
+  return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
+}
 
 function stripBase(path: string) {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
@@ -99,6 +105,7 @@ function Header() {
           <Link href="/build" data-testid="link-build">Make a hamper</Link>
           {isLoaded && isSignedIn && <Link href="/my-orders" data-testid="link-orders">My orders</Link>}
           {studioAccessQuery.data?.isAdmin && <Link href="/admin" data-testid="link-admin">Studio desk</Link>}
+          {studioAccessQuery.data?.isAdmin && <Link href="/admin/products" data-testid="link-admin-products">Products</Link>}
         </nav>
         <div className="header-actions">
           {isLoaded && isSignedIn ? (
@@ -120,6 +127,7 @@ function Header() {
         <Link onClick={() => setMenuOpen(false)} href="/build" data-testid="mobile-link-build">Make a hamper</Link>
         {isSignedIn ? <Link onClick={() => setMenuOpen(false)} href="/my-orders" data-testid="mobile-link-orders">My orders</Link> : <Link onClick={() => setMenuOpen(false)} href="/sign-in" data-testid="mobile-link-sign-in">Sign in</Link>}
         {studioAccessQuery.data?.isAdmin && <Link onClick={() => setMenuOpen(false)} href="/admin" data-testid="mobile-link-admin">Studio desk</Link>}
+        {studioAccessQuery.data?.isAdmin && <Link onClick={() => setMenuOpen(false)} href="/admin/products" data-testid="mobile-link-admin-products">Manage products</Link>}
       </nav>}
     </header>
   );
@@ -275,20 +283,20 @@ function OrderBuilder() {
     setUploadError('');
     setPhotoPath('');
     setPhotoName('');
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    if (!isSupportedImageType(file.type)) {
       setUploadError('Please choose a JPEG, PNG or WebP image.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('That image is a little too large. Choose one under 5 MB.');
+    if (file.size > 4 * 1024 * 1024) {
+      setUploadError('That image is a little too large. Choose one up to 4 MB.');
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
     setUploading(true);
     try {
-      const signed = await requestUpload.mutateAsync({ data: { name: file.name, size: file.size, contentType: file.type as 'image/jpeg' | 'image/png' | 'image/webp' } });
-      const response = await fetch(signed.uploadURL, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      const signed = await requestUpload.mutateAsync({ data: { name: file.name, size: file.size, contentType: file.type } });
+      const response = await fetch(signed.uploadURL, { method: 'PUT', headers: { 'Content-Type': file.type, 'X-Upload-Token': signed.uploadToken }, body: file });
       if (!response.ok) throw new Error('The photo could not be uploaded. Please try again.');
       if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
       setPhotoPath(signed.objectPath);
@@ -325,7 +333,10 @@ function OrderBuilder() {
     };
     try {
       const saved = await createOrder.mutateAsync({ data: input });
-      await queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }),
+      ]);
       setCompleteOrder(saved);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
@@ -399,7 +410,7 @@ function OrderBuilder() {
               <div className="photo-upload">
                 <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => void handlePhoto(event.target.files?.[0])} data-testid="input-photo" />
                 {photoPath ? <div className="uploaded-photo"><span className="photo-file-icon"><Check size={17} /></span><span><b>{photoName}</b><small>Private photo attached to this gift</small></span><button type="button" aria-label="Remove photo" onClick={() => { setPhotoPath(''); setPhotoName(''); if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl); setPhotoPreviewUrl(''); if (fileRef.current) fileRef.current.value = ''; }} data-testid="button-remove-photo"><Trash2 size={17} /></button></div> : <button type="button" className="upload-prompt" onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="button-upload-photo">
-                  <span className="upload-icon">{uploading ? <LoaderCircle className="spin" size={19} /> : <ImagePlus size={19} />}</span><span><b>{uploading ? 'Keeping it safe…' : 'Add one favourite photo'}</b><small>JPEG, PNG or WebP · up to 5 MB · private to your order</small></span><ArrowRight size={16} />
+                  <span className="upload-icon">{uploading ? <LoaderCircle className="spin" size={19} /> : <ImagePlus size={19} />}</span><span><b>{uploading ? 'Keeping it safe…' : 'Add one favourite photo'}</b><small>JPEG, PNG or WebP · up to 4 MB · private to your order</small></span><ArrowRight size={16} />
                 </button>}
                 {uploadError && <p className="inline-error" role="alert">{uploadError}</p>}
               </div>
@@ -529,7 +540,10 @@ function AdminPage() {
     <main className="admin-page page-shell">
       <div className="admin-heading">
         <div><span className="eyebrow">Hamper Hub · studio desk</span><h1 className="font-display">The order <em>book.</em></h1><p>Every detail, ready for the hands that make it happen.</p></div>
-        <button type="button" className="admin-refresh" onClick={() => ordersQuery.refetch()} disabled={ordersQuery.isFetching} data-testid="button-refresh-admin"><RefreshCw size={15} className={ordersQuery.isFetching ? 'spin' : ''} /> Refresh orders</button>
+        <div className="admin-heading-actions">
+          <Link href="/admin/products" className="admin-refresh" data-testid="link-manage-admin-products"><PackageCheck size={15} /> Manage products</Link>
+          <button type="button" className="admin-refresh" onClick={() => ordersQuery.refetch()} disabled={ordersQuery.isFetching} data-testid="button-refresh-admin"><RefreshCw size={15} className={ordersQuery.isFetching ? 'spin' : ''} /> Refresh orders</button>
+        </div>
       </div>
       {ordersQuery.isLoading ? <div className="admin-loading" aria-label="Loading studio orders">{[1, 2, 3].map((item) => <div className="admin-skeleton" key={item}><div /><span /><span /></div>)}</div> :
         ordersQuery.isError && errorStatus(ordersQuery.error) === 403 ? <div className="admin-state admin-denied"><LockKeyhole size={28} /><span className="eyebrow">Studio access only</span><h2>This order book is private.</h2><p>Your account does not have permission to view studio orders.</p></div> :
@@ -555,6 +569,304 @@ function AdminPage() {
               </div>
               <div className="admin-order-footer"><span className="admin-label">Fulfillment status</span><div className="admin-status-actions">{(['placed', 'preparing', 'delivered'] as OrderStatus[]).map((status) => <button type="button" key={status} className={order.status === status ? 'selected' : ''} disabled={statusMutation.isPending || order.status === status} onClick={() => void updateStatus(order.id, status)} data-testid={`button-status-${order.id}-${status}`}>{updatingId === order.id && updatingStatus === status && statusMutation.isPending ? <LoaderCircle className="spin" size={13} /> : null}{status === 'placed' ? 'Received' : status === 'preparing' ? 'Preparing' : 'Delivered'}</button>)}</div></div>
             </article>)}</div>}
+        </>}
+    </main>
+  </Shell>;
+}
+
+type ProductAdminFilter = 'all' | 'active' | 'inactive' | 'out-of-stock';
+type ProductAdminDraft = {
+  name: string;
+  description: string;
+  category: ProductCategory;
+  price: string;
+  imageAlt: string;
+  stock: string;
+  active: boolean;
+  imageObjectPath?: string;
+};
+
+const productCategories: ProductCategory[] = ['sweet', 'savoury', 'self-care', 'home', 'keepsake'];
+
+function newProductDraft(): ProductAdminDraft {
+  return {
+    name: '',
+    description: '',
+    category: 'sweet',
+    price: '',
+    imageAlt: '',
+    stock: '0',
+    active: false,
+  };
+}
+
+function AdminProductsPage() {
+  const queryClient = useQueryClient();
+  const adminAccessQuery = useGetAdminAccess();
+  const productsQuery = useListAdminProducts({
+    query: { enabled: adminAccessQuery.data?.isAdmin === true },
+  });
+  const createProduct = useCreateAdminProduct();
+  const updateProduct = useUpdateAdminProduct();
+  const archiveProduct = useArchiveAdminProduct();
+  const requestUpload = useRequestUploadUrl();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const localPreviewRef = useRef<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [draft, setDraft] = useState<ProductAdminDraft>(newProductDraft);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<ProductAdminFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<ProductCategory | 'all'>('all');
+  const [uploading, setUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [mutationError, setMutationError] = useState('');
+
+  useEffect(() => () => {
+    if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
+  }, []);
+
+  const allProducts = productsQuery.data ?? [];
+  const visibleProducts = allProducts.filter((product) => {
+    const matchesFilter = filter === 'all' ||
+      (filter === 'active' && product.active) ||
+      (filter === 'inactive' && !product.active) ||
+      (filter === 'out-of-stock' && product.stock === 0);
+    const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+    const query = search.trim().toLocaleLowerCase();
+    const matchesSearch = !query ||
+      product.name.toLocaleLowerCase().includes(query) ||
+      product.description.toLocaleLowerCase().includes(query);
+    return matchesFilter && matchesCategory && matchesSearch;
+  });
+  const saving = createProduct.isPending || updateProduct.isPending;
+
+  const clearPreview = () => {
+    if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
+    localPreviewRef.current = null;
+    setImagePreview(null);
+  };
+
+  const closeEditor = () => {
+    setEditingProduct(null);
+    setDraft(newProductDraft());
+    setFormError('');
+    setImageError('');
+    clearPreview();
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const openEditor = (product?: Product) => {
+    setNotice('');
+    setMutationError('');
+    setFormError('');
+    setImageError('');
+    clearPreview();
+    if (product) {
+      setEditingProduct(product);
+      setDraft({
+        name: product.name,
+        description: product.description,
+        category: product.category,
+        price: String(product.price),
+        imageAlt: product.imageAlt,
+        stock: String(product.stock),
+        active: product.active,
+      });
+      setImagePreview(product.imageUrl);
+    } else {
+      setEditingProduct(null);
+      setDraft(newProductDraft());
+    }
+    if (fileRef.current) fileRef.current.value = '';
+    document.getElementById('product-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImageError('');
+
+    if (!isSupportedImageType(file.type)) {
+      setImageError('Choose a JPEG, PNG or WebP image.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size < 1 || file.size > 4 * 1024 * 1024) {
+      setImageError('Choose an image up to 4 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const signed = await requestUpload.mutateAsync({
+        data: { name: file.name, size: file.size, contentType: file.type },
+      });
+      const response = await fetch(signed.uploadURL, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type, 'X-Upload-Token': signed.uploadToken },
+        body: file,
+      });
+      if (!response.ok) throw new Error('The image upload failed. Please try again.');
+
+      if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
+      const preview = URL.createObjectURL(file);
+      localPreviewRef.current = preview;
+      setImagePreview(preview);
+      setDraft((current) => ({
+        ...current,
+        imageObjectPath: signed.objectPath,
+        imageAlt: current.imageAlt || current.name,
+      }));
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : 'The image could not be uploaded.');
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const refreshCatalogs = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getListAdminProductsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getListProductsQueryKey() }),
+    ]);
+  };
+
+  const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError('');
+    setMutationError('');
+    setNotice('');
+
+    if (!editingProduct && !draft.imageObjectPath) {
+      setFormError('Choose and upload a product image before saving.');
+      return;
+    }
+    if (!draft.name.trim() || !draft.description.trim()) {
+      setFormError('Enter a product name and description.');
+      return;
+    }
+    if (!Number.isSafeInteger(Number(draft.price)) || Number(draft.price) < 1) {
+      setFormError('Enter a whole-number price greater than zero.');
+      return;
+    }
+    if (!Number.isSafeInteger(Number(draft.stock)) || Number(draft.stock) < 0) {
+      setFormError('Stock must be a whole number of zero or more.');
+      return;
+    }
+
+    const data: AdminProductInput = {
+      name: draft.name.trim(),
+      description: draft.description.trim(),
+      category: draft.category,
+      price: Number(draft.price),
+      imageAlt: (draft.imageAlt.trim() || draft.name.trim()),
+      stock: Number(draft.stock),
+      active: draft.active,
+      ...(draft.imageObjectPath ? { imageObjectPath: draft.imageObjectPath } : {}),
+    };
+
+    try {
+      if (editingProduct) {
+        await updateProduct.mutateAsync({ id: editingProduct.id, data });
+        setNotice(`${data.name} has been updated.`);
+      } else {
+        await createProduct.mutateAsync({ data });
+        setNotice(`${data.name} has been added to your catalog.`);
+      }
+      await refreshCatalogs();
+      closeEditor();
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'The product could not be saved.');
+    }
+  };
+
+  const archive = async (product: Product) => {
+    const confirmed = window.confirm(
+      `Archive “${product.name}”? It will no longer appear to customers. Existing orders keep their saved product details.`,
+    );
+    if (!confirmed) return;
+    setNotice('');
+    setMutationError('');
+    try {
+      await archiveProduct.mutateAsync({ id: product.id });
+      await refreshCatalogs();
+      setNotice(`${product.name} has been archived.`);
+      if (editingProduct?.id === product.id) closeEditor();
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'The product could not be archived.');
+    }
+  };
+
+  return <Shell>
+    <main className="admin-page page-shell admin-products-page">
+      <div className="admin-heading">
+        <div><span className="eyebrow">Hamper Hub · studio desk</span><h1 className="font-display">Your product <em>shelf.</em></h1><p>Keep the collection current, considered and ready to gift.</p></div>
+        <div className="admin-heading-actions">
+          <Link href="/admin" className="admin-refresh" data-testid="link-admin-orders"><ClipboardList size={15} /> Order book</Link>
+          <button type="button" className="admin-refresh" onClick={() => productsQuery.refetch()} disabled={productsQuery.isFetching} data-testid="button-refresh-products"><RefreshCw size={15} className={productsQuery.isFetching ? 'spin' : ''} /> Refresh</button>
+        </div>
+      </div>
+
+      {adminAccessQuery.isLoading ? <div className="admin-loading" aria-label="Verifying studio access"><div className="admin-skeleton"><div /><span /><span /></div></div> :
+        adminAccessQuery.isError ? <div className="admin-state"><CircleHelp size={27} /><h2>We couldn’t verify studio access.</h2><p>Please try checking your access again.</p><button className="button button-dark" onClick={() => adminAccessQuery.refetch()} data-testid="button-retry-admin-access">Try again <ArrowRight size={15} /></button></div> :
+        !adminAccessQuery.data?.isAdmin ? <div className="admin-state admin-denied"><LockKeyhole size={28} /><span className="eyebrow">Studio access only</span><h2>This product shelf is private.</h2><p>Your account does not have permission to manage products.</p></div> :
+        <>
+      {notice && <div className="admin-feedback success" role="status" data-testid="status-admin-product-success"><Check size={15} />{notice}</div>}
+      {mutationError && <div className="admin-feedback failure" role="alert">{mutationError}</div>}
+
+      <section id="product-editor" className="product-editor">
+        <div className="product-editor-heading">
+          <div><span className="eyebrow">{editingProduct ? 'Refine the details' : 'A new good thing'}</span><h2>{editingProduct ? 'Edit product' : 'Add a product'}</h2></div>
+          {editingProduct && <button type="button" className="text-button" onClick={closeEditor} data-testid="button-cancel-product-edit"><X size={15} /> Cancel</button>}
+        </div>
+        <form className="product-editor-form" onSubmit={(event) => void saveProduct(event)}>
+          <label className="product-field"><span>Product name</span><input required maxLength={100} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value, imageAlt: current.imageAlt || event.target.value }))} placeholder="e.g. Wildflower honey" data-testid="input-product-name" /></label>
+          <label className="product-field"><span>Category</span><select value={draft.category} onChange={(event) => { const value = productCategories.find((category) => category === event.target.value); if (value) setDraft((current) => ({ ...current, category: value })); }} data-testid="select-product-category">{productCategories.map((category) => <option key={category} value={category}>{category.replace('-', ' ')}</option>)}</select></label>
+          <label className="product-field"><span>Price <small>INR</small></span><div className="product-number-wrap"><span>₹</span><input required type="number" min="1" max="2147483647" step="1" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="0" data-testid="input-product-price" /></div></label>
+          <label className="product-field"><span>Stock quantity</span><input required type="number" min="0" max="2147483647" step="1" value={draft.stock} onChange={(event) => setDraft((current) => ({ ...current, stock: event.target.value }))} data-testid="input-product-stock" /></label>
+          <label className="product-field full"><span>Description</span><textarea required maxLength={1000} rows={3} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What makes this item a thoughtful gift?" data-testid="input-product-description" /></label>
+          <label className="product-field full"><span>Image description <small>Shown to assistive technology</small></span><input required maxLength={255} value={draft.imageAlt} onChange={(event) => setDraft((current) => ({ ...current, imageAlt: event.target.value }))} placeholder={draft.name || 'Describe the product image'} data-testid="input-product-image-alt" /></label>
+          <div className="product-image-field">
+            <span className="product-field-label">Product image</span>
+            <div className="product-image-picker">
+              {imagePreview ? <img src={imagePreview} alt={draft.imageAlt || draft.name || 'Product preview'} /> : <div className="product-image-empty"><ImagePlus size={24} /><span>No image selected</span></div>}
+              <div><input ref={fileRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void handleImage(event)} data-testid="input-product-image" /><button type="button" className="admin-refresh" onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="button-choose-product-image">{uploading ? <><LoaderCircle className="spin" size={15} /> Uploading…</> : <><ImagePlus size={15} /> {imagePreview ? 'Replace image' : 'Choose image'}</>}</button><small>JPEG, PNG or WebP · up to 4 MB</small></div>
+            </div>
+            {imageError && <p className="product-form-error" role="alert">{imageError}</p>}
+          </div>
+          <label className="product-active-toggle"><input type="checkbox" checked={draft.active} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} data-testid="checkbox-product-active" /><span><b>Active in customer catalog</b><small>Only active products with stock appear to customers.</small></span></label>
+          {formError && <p className="product-form-error full" role="alert">{formError}</p>}
+          <div className="product-editor-actions full"><button type="submit" className="button button-dark" disabled={saving || uploading} data-testid="button-save-product">{saving ? <><LoaderCircle className="spin" size={15} /> Saving…</> : <>{editingProduct ? 'Save changes' : 'Add product'} <ArrowRight size={15} /></>}</button>{!editingProduct && <span>New products start inactive until you choose to activate them.</span>}</div>
+        </form>
+      </section>
+
+      <section className="product-catalog-admin" aria-label="Manage products">
+        <div className="product-catalog-heading"><div><span className="eyebrow">Your catalog</span><h2>Products <span>{allProducts.length}</span></h2></div><button type="button" className="button button-dark" onClick={() => openEditor()} data-testid="button-add-product"><Plus size={16} /> Add product</button></div>
+        <div className="product-catalog-toolbar">
+          <label className="product-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products" aria-label="Search products" data-testid="input-search-products" /></label>
+          <label className="product-category-filter"><span>Category</span><select value={categoryFilter} onChange={(event) => { const value = event.target.value; setCategoryFilter(value === 'all' ? 'all' : productCategories.find((category) => category === value) ?? 'all'); }} data-testid="filter-product-category"><option value="all">All categories</option>{productCategories.map((category) => <option key={category} value={category}>{category.replace('-', ' ')}</option>)}</select></label>
+          <div className="admin-filters" aria-label="Filter products">{(['all', 'active', 'inactive', 'out-of-stock'] as const).map((status) => <button type="button" key={status} className={filter === status ? 'active' : ''} onClick={() => setFilter(status)} data-testid={`filter-products-${status}`}>{status === 'out-of-stock' ? 'Out of stock' : status}</button>)}</div>
+        </div>
+
+        {productsQuery.isLoading ? <div className="admin-loading" aria-label="Loading products">{[1, 2, 3].map((item) => <div className="admin-skeleton" key={item}><div /><span /><span /></div>)}</div> :
+          productsQuery.isError && errorStatus(productsQuery.error) === 403 ? <div className="admin-state admin-denied"><LockKeyhole size={28} /><span className="eyebrow">Studio access only</span><h2>This product shelf is private.</h2><p>Your account does not have permission to manage products.</p></div> :
+          productsQuery.isError ? <div className="admin-state"><CircleHelp size={27} /><h2>We couldn’t open the product shelf.</h2><p>Your catalog is safe. Please try loading it again.</p><button className="button button-dark" onClick={() => productsQuery.refetch()} data-testid="button-retry-products-admin">Try again <ArrowRight size={15} /></button></div> :
+          allProducts.length === 0 ? <div className="admin-state admin-empty"><Gift size={28} /><span className="eyebrow">A fresh start</span><h2>Your product shelf is empty.</h2><p>Add a product above to begin building the customer collection. Nothing is seeded or shown until you add it, set verified stock and activate it.</p><button type="button" className="button button-dark" onClick={() => openEditor()} data-testid="button-add-first-product"><Plus size={15} /> Add your first product</button></div> :
+          visibleProducts.length === 0 ? <div className="admin-state admin-empty"><Search size={25} /><h2>No products match that view.</h2><p>Try a different search or filter.</p></div> :
+          <div className="product-admin-list">{visibleProducts.map((product) => <article className="product-admin-card" key={product.id} data-testid={`admin-product-${product.id}`}>
+            <img className="product-admin-thumb" src={product.imageUrl} alt={product.imageAlt} />
+            <div className="product-admin-main"><span className="eyebrow">{product.category.replace('-', ' ')}</span><h3>{product.name}</h3><p>{product.description}</p></div>
+            <div className="product-admin-meta"><span>Price</span><b>{money.format(product.price)}</b></div>
+            <div className="product-admin-meta"><span>Stock</span><b>{product.stock}</b></div>
+            <span className={`product-admin-status ${product.active ? product.stock > 0 ? 'available' : 'out-of-stock' : 'inactive'}`}>{product.active ? product.stock > 0 ? 'Available' : 'Out of stock' : 'Inactive'}</span>
+            <div className="product-admin-actions"><button type="button" className="admin-refresh" onClick={() => openEditor(product)} aria-label={`Edit ${product.name}`} data-testid={`button-edit-product-${product.id}`}><Pencil size={14} /> Edit</button><button type="button" className="admin-refresh product-archive-button" onClick={() => void archive(product)} disabled={!product.active || archiveProduct.isPending} data-testid={`button-archive-product-${product.id}`}><Archive size={14} /> Archive</button></div>
+          </article>)}</div>}
+      </section>
         </>}
     </main>
   </Shell>;
@@ -591,6 +903,7 @@ function Routes() {
     <Route path="/build"><ProtectedPage><OrderBuilder /></ProtectedPage></Route>
     <Route path="/my-orders"><ProtectedPage><OrdersPage /></ProtectedPage></Route>
     <Route path="/admin"><ProtectedPage><AdminPage /></ProtectedPage></Route>
+    <Route path="/admin/products"><ProtectedPage><AdminProductsPage /></ProtectedPage></Route>
     <Route path="/sign-in/*?" component={() => <AuthPage kind="sign-in" />} />
     <Route path="/sign-up/*?" component={() => <AuthPage kind="sign-up" />} />
     <Route component={NotFound} />

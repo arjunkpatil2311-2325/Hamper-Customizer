@@ -17,4 +17,7 @@ export interface Product {
   imageUrl: string;
   imageAlt: string;
   featured: boolean;
+  /** @minimum 0 */
+  stock: number;
+  active: boolean;
 }

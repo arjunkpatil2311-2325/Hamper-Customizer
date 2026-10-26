@@ -36,7 +36,7 @@ paths:
     get:
       operationId: listProducts
       tags: [products]
-      summary: List products available for custom hampers
+      summary: List active, in-stock products available for custom hampers
       responses:
         "200":
           description: Product catalog
@@ -46,6 +46,31 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Product"
+  /products/images/{id}:
+    get:
+      operationId: getProductImage
+      tags: [products]
+      summary: Get a product image
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Product image not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /orders:
     get:
       operationId: listOrders
@@ -151,6 +176,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/products:
+    get:
+      operationId: listAdminProducts
+      tags: [admin]
+      summary: List all products for the studio
+      responses:
+        "200":
+          description: Products, including inactive and out-of-stock items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Studio admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    post:
+      operationId: createAdminProduct
+      tags: [admin]
+      summary: Add a product to the catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid product or image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Studio admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /admin/products/{id}:
+    put:
+      operationId: updateAdminProduct
+      tags: [admin]
+      summary: Update a catalog product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProductInput"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid product or image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Studio admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: archiveAdminProduct
+      tags: [admin]
+      summary: Archive a product without deleting its order history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Archived product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Studio admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /admin/access:
     get:
       operationId: getAdminAccess
@@ -248,6 +417,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /storage/uploads/{id}:
+    put:
+      operationId: uploadStorageObject
+      tags: [storage]
+      summary: Upload a private image using a short-lived user-bound upload token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: token
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+              maxLength: 4194304
+          image/png:
+            schema:
+              type: string
+              format: binary
+              maxLength: 4194304
+          image/webp:
+            schema:
+              type: string
+              format: binary
+              maxLength: 4194304
+      responses:
+        "204":
+          description: Private image uploaded
+        "400":
+          description: Invalid, expired or mismatched upload token or image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Image exceeds 4 MB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /storage/objects/{objectPath}:
     get:
       operationId: getStorageObject
@@ -297,7 +522,7 @@ components:
         - status
     Product:
       type: object
-      required: [id, name, description, category, price, imageUrl, imageAlt, featured]
+      required: [id, name, description, category, price, imageUrl, imageAlt, featured, stock, active]
       properties:
         id:
           type: string
@@ -316,6 +541,43 @@ components:
         imageAlt:
           type: string
         featured:
+          type: boolean
+        stock:
+          type: integer
+          minimum: 0
+        active:
+          type: boolean
+    AdminProductInput:
+      type: object
+      required: [name, description, category, price, imageAlt, stock, active]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        category:
+          type: string
+          enum: [sweet, savoury, self-care, home, keepsake]
+        price:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        imageAlt:
+          type: string
+          minLength: 1
+          maxLength: 255
+        imageObjectPath:
+          type: string
+          maxLength: 512
+        stock:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        active:
           type: boolean
     PackagingOption:
       type: string
@@ -495,17 +757,19 @@ components:
         size:
           type: integer
           minimum: 1
-          maximum: 5242880
+          maximum: 4194304
         contentType:
           type: string
           enum: [image/jpeg, image/png, image/webp]
     UploadUrlResponse:
       type: object
-      required: [uploadURL, objectPath]
+      required: [uploadURL, uploadToken, objectPath]
       properties:
         uploadURL:
           type: string
-          format: uri
+        uploadToken:
+          type: string
+          description: Short-lived token bound to the signed-in user and upload constraints.
         objectPath:
           type: string
         metadata:
@@ -516,4 +780,3 @@ components:
       properties:
         error:
           type: string
-
