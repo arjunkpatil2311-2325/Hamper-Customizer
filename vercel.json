@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "corepack pnpm install --frozen-lockfile",
-  "buildCommand": "corepack pnpm --filter @workspace/hamper-hub run build",
+  "buildCommand": "corepack pnpm --filter @workspace/api-server run build && corepack pnpm --filter @workspace/hamper-hub run build",
   "outputDirectory": "artifacts/hamper-hub/dist/public",
   "rewrites": [
     {
