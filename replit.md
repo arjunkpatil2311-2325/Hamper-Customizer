@@ -72,7 +72,7 @@ Keep values in ignored local environment files or the deployment's secret manage
 - `artifacts/api-server/src/routes/adminProducts.ts` — server-protected product CRUD/archive operations
 - `artifacts/api-server/src/routes/orders.ts` — customer order validation, inventory reservation and order snapshots
 - `artifacts/api-server/src/lib/objectStorage.ts` — private Vercel Blob storage and signed upload-link handling
-- `api/[...path].ts` and `artifacts/api-server/src/vercel.ts` — Vercel serverless API entry point
+- `api/[...path].js` and `artifacts/api-server/src/vercel.ts` — Vercel serverless API entry point
 - `vercel.json` — Vercel build, static output and SPA routing configuration
 - `artifacts/api-server/src/middlewares/customerAuth.ts` — verified Clerk-based studio admin authorization
 - `lib/db/src/schema/products.ts` and `product-images.ts` — product and immutable product-image records
