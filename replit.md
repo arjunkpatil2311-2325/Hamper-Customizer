@@ -97,7 +97,7 @@ Before the first production deployment:
 1. Import this Git repository into the existing `hamper-hub` Vercel project. The project shown in the dashboard must be connected to the repository containing this configuration.
 2. Create a PostgreSQL database (Neon is a compatible option) and set `DATABASE_URL` in Vercel. Use the provider's pooled connection string for the deployed API.
 3. Connect a **private** Vercel Blob store to the project. Do not use a public store: personalization photos and product uploads are private at rest. The Blob integration provides the store credentials to deployments.
-4. Configure Clerk production credentials: `VITE_CLERK_PUBLISHABLE_KEY` (available to the frontend build), `CLERK_PUBLISHABLE_KEY`, and `CLERK_SECRET_KEY`. For Vercel, set `VITE_CLERK_PROXY_URL` to `/__clerk`; Vercel rewrites that path to the API function. For local deployments, use `/api/__clerk`. Add the deployed Vercel domain to the Clerk instance.
+4. Configure Clerk production credentials: `VITE_CLERK_PUBLISHABLE_KEY` (available to the frontend build), `CLERK_PUBLISHABLE_KEY`, and `CLERK_SECRET_KEY`. For Vercel, set `VITE_CLERK_PROXY_URL` to `/_clerk`; Vercel rewrites that path to the API function. For local deployments, use `/api/__clerk`. Add the deployed Vercel domain to the Clerk instance.
 5. Set `HAMPER_HUB_ADMIN_EMAIL` to the store owner's verified Clerk email.
 6. Set `UPLOAD_TOKEN_SECRET` to a new random secret (at least 32 random bytes). Generate it locally; never put the value in Git or chat.
 7. Run `corepack pnpm --filter @workspace/db run push` against the intended new database only after checking `DATABASE_URL`. This project has no versioned migrations; schema push changes the target database.

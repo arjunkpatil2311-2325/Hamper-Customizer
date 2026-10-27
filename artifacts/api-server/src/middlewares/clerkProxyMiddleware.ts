@@ -62,7 +62,7 @@ export function clerkProxyMiddleware(): RequestHandler {
   if (!secretKey) {
     return (_req, _res, next) => next();
   }
-  const proxyPath = process.env.VERCEL ? '/__clerk' : CLERK_PROXY_PATH;
+  const proxyPath = process.env.VERCEL ? '/_clerk' : CLERK_PROXY_PATH;
 
   return createProxyMiddleware({
     target: CLERK_FAPI,
@@ -76,7 +76,7 @@ export function clerkProxyMiddleware(): RequestHandler {
       proxyReq: (proxyReq, req) => {
         const protocol = req.headers['x-forwarded-proto'] || 'https';
         const host = getClerkProxyHost(req) || '';
-        const proxyUrlPath = process.env.VERCEL ? '/__clerk' : CLERK_PROXY_PATH;
+        const proxyUrlPath = process.env.VERCEL ? '/_clerk' : CLERK_PROXY_PATH;
         const proxyUrl = `${protocol}://${host}${proxyUrlPath}`;
 
         proxyReq.setHeader('Clerk-Proxy-Url', proxyUrl);

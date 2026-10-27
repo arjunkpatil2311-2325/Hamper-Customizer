@@ -32,7 +32,7 @@ app.use(
     },
   }),
 );
-const clerkProxyPath = process.env.VERCEL ? "/__clerk" : CLERK_PROXY_PATH;
+const clerkProxyPath = process.env.VERCEL ? "/_clerk" : CLERK_PROXY_PATH;
 app.use(clerkProxyPath, clerkProxyMiddleware());
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
