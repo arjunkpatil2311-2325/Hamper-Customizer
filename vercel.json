@@ -6,6 +6,10 @@
   "outputDirectory": "artifacts/hamper-hub/dist/public",
   "rewrites": [
     {
+      "source": "/__clerk/:path*",
+      "destination": "/api/index?__vercel_rewrite_path=__clerk/:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/index?__vercel_rewrite_path=:path*"
     },
